@@ -275,8 +275,12 @@ CREATE TABLE inventory (
 )
 suspend fun createFulfillmentOrder(order: Order): WmsFulfillmentResult
 ```
+**2. Graceful Degradation**
+- Cache WMS health status (TTL: 1 minute)
+- Return error responses instead of hanging
+- Maintain system stability under WMS failures
 
-**2. Circuit Breaker Pattern**
+**3. Circuit Breaker Pattern**
 ```kotlin
 @CircuitBreaker(
     name = "wms-api",
@@ -285,15 +289,12 @@ suspend fun createFulfillmentOrder(order: Order): WmsFulfillmentResult
 suspend fun createFulfillmentOrder(order: Order): WmsFulfillmentResult
 ```
 
-**3. Dead Letter Queue for Kafka**
+**4. Dead Letter Queue for Kafka**
 - Failed inventory updates sent to error topic
 - Retry service processes failed messages
 - Exponential backoff for retry attempts
 
-**4. Graceful Degradation**
-- Cache WMS health status (TTL: 1 minute)
-- Return error responses instead of hanging
-- Maintain system stability under WMS failures
+
 
 ## 🚀 Quick Start
 
