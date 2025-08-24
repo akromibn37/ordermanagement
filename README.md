@@ -166,6 +166,234 @@ POST /api/v1/fulfillment-orders
 
 **Reference**: [ShipBob Developer Portal](https://developer.shipbob.com/introduction)
 
+## 📚 API Documentation
+---
+
+#### **API Specifications**
+
+**1. order-manage-api (Port 8080)**
+
+**Shopify Webhook - Order Processing**
+```json
+POST /api/shopify/webhooks/orders
+Content-Type: application/json
+
+{
+  "id": "123456789",
+  "orderNumber": "1001",
+  "name": "#1001",
+  "email": "customer@example.com",
+  "phone": "+1234567890",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z",
+  "processedAt": "2024-01-15T10:30:00Z",
+  "customer": {
+    "id": "123456789",
+    "email": "customer@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "phone": "+1234567890"
+  },
+  "lineItems": [
+    {
+      "id": 123456789,
+      "productId": 123456789,
+      "variantId": 123456789,
+      "quantity": 2,
+      "title": "Popular T-Shirt",
+      "sku": "TSHIRT-001",
+      "price": "19.99",
+      "totalDiscount": "0.00",
+      "variantTitle": "Medium / Blue"
+    }
+  ],
+  "shippingAddress": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "address1": "123 Main St",
+    "city": "New York",
+    "province": "NY",
+    "country": "United States",
+    "zip": "10001"
+  },
+  "billingAddress": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "address1": "123 Main St",
+    "city": "New York",
+    "province": "NY",
+    "country": "United States",
+    "zip": "10001"
+  },
+  "totalPrice": "39.98",
+  "subtotalPrice": "39.98",
+  "totalTax": "0.00",
+  "currency": "USD",
+  "financialStatus": "paid",
+  "fulfillmentStatus": null,
+  "tags": "",
+  "note": "",
+  "sourceName": "web"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Order received and processed",
+  "orderId": "123456789"
+}
+```
+
+**2. order-manage-data-api (Port 8081)**
+
+**Check Order and Inventory Availability**
+```json
+GET /api/order/check?orderId=1001&productIds=123456789,987654321&quantity=2,1
+```
+
+**Response:**
+```json
+{
+  "isContinue": true,
+  "description": "success",
+  "orderId": 1001,
+  "products": [
+    {
+      "productId": 1000001,
+      "sku": "TSHIRT-001",
+      "title": "Popular T-Shirt",
+      "requestedQuantity": 2,
+      "availableQuantity": 95,
+      "remainQuantity": 93,
+      "status": "available"
+    }
+  ]
+}
+```
+
+
+
+**Update Order and Inventory**
+```json
+POST /api/order/update
+Content-Type: application/json
+
+{
+  "id": 123456789,
+  "orderNumber": 1001,
+  "customerId": 123456789,
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:35:00Z",
+  "processedAt": "2024-01-15T10:35:00Z",
+  "lineItems": [
+    {
+      "id": 123456789,
+      "productId": 123456789,
+      "quantity": 2,
+      "title": "Popular T-Shirt",
+      "sku": "TSHIRT-001",
+      "price": "19.99",
+      "totalDiscount": "0.00"
+    }
+  ],
+  "totalPrice": "39.98",
+  "currency": "USD"
+}
+```
+
+**Response:**
+```json
+{
+  "isSuccess": true,
+  "message": "Order updated successfully"
+}
+```
+
+
+## 🌐 External APIs
+
+### **WMS API Integration**
+
+**Get Product Inventory**
+```json
+GET {WMS_BASE_URL}/api/v1/products/{productId}/inventory
+Authorization: Bearer {API_KEY}
+
+Response:
+{
+  "productId": 123456789,
+  "sku": "TSHIRT-001",
+  "availableQuantity": 95,
+  "reservedQuantity": 5,
+  "totalQuantity": 100,
+  "locationId": 987654321,
+  "lastUpdated": "2024-01-15T10:00:00Z"
+}
+```
+
+**Create Fulfillment Order**
+```json
+POST {WMS_BASE_URL}/api/v1/fulfillment-orders
+Authorization: Bearer {API_KEY}
+Content-Type: application/json
+
+{
+  "referenceId": "1001",
+  "items": [
+    {
+      "productId": 123456789,
+      "quantity": 2,
+      "sku": "TSHIRT-001"
+    }
+  ],
+  "shippingAddress": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "address1": "123 Main St",
+    "city": "New York",
+    "state": "NY",
+    "zipCode": "10001",
+    "country": "United States"
+  },
+  "shippingMethod": "standard",
+  "customerEmail": "customer@example.com"
+}
+
+Response:
+{
+  "fulfillmentOrderId": 987654321,
+  "status": "pending",
+  "referenceId": "1001",
+  "estimatedShipDate": "2024-01-17T10:00:00Z",
+  "trackingNumber": null
+}
+```
+
+## 📨 Kafka Messaging
+
+### **Inventory Update Stream**
+
+**Topic**: `inventory-queue`
+
+**Message Format**:
+```json
+{
+  "productId": 123456789,
+  "quantity": 2,
+  "locationId": 987654321
+}
+```
+
+**Message Key**: `{productId}` (String)
+
+**Publishing Flow**:
+1. Order processed successfully
+2. For each line item, publish inventory update message
+3. Message contains product ID, quantity, and location ID
+4. Used by downstream services for inventory synchronization
+
 ## 🔒 Data Consistency & Race Conditions
 
 ### Overselling Prevention Strategy
@@ -431,27 +659,6 @@ docker-compose up -d order-manage-api
 docker-compose up -d order-stream-process
 ```
 
-## 🎉 **System Status: FULLY OPERATIONAL**
-
-**✅ All Services Running Successfully:**
-- PostgreSQL Database: Healthy
-- Zookeeper: Healthy (Issue Resolved)
-- Kafka: Healthy
-- Mock WMS API: Healthy
-- order-manage-data-api: Healthy
-- order-manage-api: Healthy
-- order-stream-process: Healthy
-
-**✅ All Test Scenarios Passing:**
-- 7 comprehensive test scenarios executed successfully
-- Success and failure cases working properly
-- Kafka integration functioning correctly
-- No service downtime or errors
-
-**Service Details:**
-- **order-manage-data-api** (Port 8081): Database operations, inventory management, order CRUD
-- **order-manage-api** (Port 8080): Shopify webhooks, WMS integration, Kafka publishing
-- **order-stream-process** (Port 8083): Kafka consumption, Shopify inventory synchronization
 
 **Verify Services Are Running:**
 ```bash
@@ -477,20 +684,9 @@ Once all services are started and running, use these commands to test the system
 make test-all-scenarios
 ```
 
-##### **Individual Test Commands**
-```bash
-# Test basic Shopify to Order flow
-make test-shopify-order
-
-# Test complete Kafka consumption to Shopify flow
-make test-kafka-shopify-flow
-```
-
 ##### **Test Scenarios Included**
 
 The system includes **7 comprehensive test scenarios** that validate both success and failure cases with detailed logging and database verification:
-
-**✅ Zookeeper Issue Resolved:** The Zookeeper startup issue has been fixed. All test commands now work properly with the full infrastructure.
 
 **Success Scenarios:**
 - **3.1** Single Product Order (1 product, 1 quantity)
@@ -554,19 +750,6 @@ make check-order ORDER_NUM=7001
 
 
 
-## 📚 API Documentation
-
-### 🚀 Swagger/OpenAPI Interactive Documentation
-
-The Order Management System provides comprehensive, interactive API documentation using **Swagger/OpenAPI 3.0.3** standards. Each microservice includes detailed API specifications with real-time testing capabilities.
-
-#### **Available Swagger Documentation**
-
-| Service | Port | Swagger UI URL | Description |
-|---------|------|----------------|-------------|
-| **order-manage-api** | 8080 | [`http://localhost:8080/swagger-ui.html`](http://localhost:8080/swagger-ui.html) | Shopify webhooks, WMS integration, Kafka publishing |
-| **order-manage-data-api** | 8081 | [`http://localhost:8081/swagger-ui.html`](http://localhost:8081/swagger-ui.html) | Database operations, inventory management, order CRUD |
-| **order-stream-process** | 8083 | [`http://localhost:8083/swagger-ui.html`](http://localhost:8083/swagger-ui.html) | Kafka consumption, Shopify inventory sync |
 
 
 ## 🔧 Configuration
