@@ -1,0 +1,182 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: order-management-postgres
+    environment:
+      POSTGRES_DB: order_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - order-management-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d order_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: order-management-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_MAX_CLIENT_CNXNS: 60
+      ZOOKEEPER_4LW_COMMANDS_WHITELIST: "ruok,srvr,stat,wchc,dump,crst,srst,envi,conf,hash,wchs,wchp,dirs,cons,mntr,isro,gtmk,stmk"
+    ports:
+      - "2181:2181"
+    networks:
+      - order-management-network
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc 0.0.0.0 2181"]
+      interval: 20s
+      timeout: 15s
+      retries: 15
+      start_period: 60s
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: order-management-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+      # Alternative: Use KRaft mode (Kafka 2.8+) to eliminate Zookeeper dependency
+      # KAFKA_NODE_ID: 1
+      # KAFKA_PROCESS_ROLES: 'broker,controller'
+      # KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      # KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      # KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093'
+      # KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      # KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      # KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      # KAFKA_PROCESS_ROLES: 'broker,controller'
+      # KAFKA_NODE_ID: 1
+      # KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+    networks:
+      - order-management-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Order Management Data API
+  order-manage-data-api:
+    build:
+      context: ./order-manage-data-api
+      dockerfile: Dockerfile
+    container_name: order-manage-data-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_management
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+      SPRING_JPA_SHOW_SQL: true
+    networks:
+      - order-management-network
+
+
+  # Order Management API
+  order-manage-api:
+    build:
+      context: ./order-manage-api
+      dockerfile: Dockerfile
+    container_name: order-manage-api
+    depends_on:
+      order-manage-data-api:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      APP_ORDER_DATA_API_BASE_URL: http://order-manage-data-api:8081
+      APP_WMS_API_BASE_URL: http://mock-wms-api:1080
+      APP_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      APP_KAFKA_TOPICS_INVENTORY_UPDATES: inventory-updates
+    networks:
+      - order-management-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Order Stream Process
+  order-stream-process:
+    build:
+      context: ./order-stream-process
+      dockerfile: Dockerfile
+    container_name: order-stream-process
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      APP_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      APP_KAFKA_TOPICS_INVENTORY_UPDATES: inventory-updates
+      APP_SHOPIFY_BASE_URL: https://your-shop.myshopify.com
+      APP_SHOPIFY_ADMIN_API_VERSION: 2023-10
+      APP_SHOPIFY_ACCESS_TOKEN: your-access-token
+    networks:
+      - order-management-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Mock WMS API for testing
+  mock-wms-api:
+    image: mockserver/mockserver:5.15.0
+    container_name: mock-wms-api
+    ports:
+      - "8084:1080"
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/initialization.json
+      MOCKSERVER_LOG_LEVEL: INFO
+    volumes:
+      - ./mock-config:/config
+    networks:
+      - order-management-network
+
+volumes:
+  postgres_data:
+
+networks:
+  order-management-network:
+    driver: bridge 

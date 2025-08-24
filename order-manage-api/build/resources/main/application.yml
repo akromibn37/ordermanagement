@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: order-management-api
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: order-management-group
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# External APIs
+app:
+  wms:
+    base-url: http://localhost:8081
+    api-key: wms-api-key
+
+  order-data-api:
+    base-url: http://localhost:8082
+
+  kafka:
+    topics:
+      inventory-queue: inventory-updates
+
+# Server configuration
+server:
+  port: 8080

@@ -1,0 +1,371 @@
+{
+  "description": "Shopify Integration Test Configuration for Order Stream Process",
+  "testScenarios": [
+    {
+      "name": "Order Creation Flow",
+      "description": "Test complete order creation flow from order-stream-process to Shopify",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Create order in Shopify",
+          "endpoint": "POST /admin/api/2023-10/orders.json",
+          "expectedRequest": {
+            "order": {
+              "line_items": [
+                {
+                  "variant_id": 345678,
+                  "quantity": 10
+                }
+              ],
+              "customer": {
+                "email": "test@example.com"
+              }
+            }
+          },
+          "mockResponse": {
+            "statusCode": 201,
+            "body": {
+              "order": {
+                "id": 123456789,
+                "order_number": "SHOPIFY-TEST-123",
+                "status": "open"
+              }
+            }
+          }
+        },
+        {
+          "step": 2,
+          "action": "Update inventory levels",
+          "endpoint": "PUT /admin/api/2023-10/inventory_levels/set.json",
+          "expectedRequest": {
+            "location_id": 123456,
+            "inventory_item_id": 789012,
+            "available": 90
+          },
+          "mockResponse": {
+            "statusCode": 200,
+            "body": {
+              "inventory_level": {
+                "available": 90,
+                "updated_at": "2024-01-15T10:00:00-05:00"
+              }
+            }
+          }
+        },
+        {
+          "step": 3,
+          "action": "Create fulfillment",
+          "endpoint": "POST /admin/api/2023-10/fulfillments.json",
+          "expectedRequest": {
+            "fulfillment": {
+              "order_id": 123456789,
+              "line_items": [
+                {
+                  "id": 123456,
+                  "quantity": 10
+                }
+              ]
+            }
+          },
+          "mockResponse": {
+            "statusCode": 201,
+            "body": {
+              "fulfillment": {
+                "id": 987654321,
+                "status": "open"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory Management Flow",
+      "description": "Test inventory management operations from order-stream-process",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Get current inventory levels",
+          "endpoint": "GET /admin/api/2023-10/inventory_levels.json",
+          "queryParams": {
+            "inventory_item_ids": ["789012"]
+          },
+          "mockResponse": {
+            "statusCode": 200,
+            "body": {
+              "inventory_levels": [
+                {
+                  "inventory_item_id": 789012,
+                  "available": 100
+                }
+              ]
+            }
+          }
+        },
+        {
+          "step": 2,
+          "action": "Update inventory after order",
+          "endpoint": "PUT /admin/api/2023-10/inventory_levels/set.json",
+          "expectedRequest": {
+            "location_id": 123456,
+            "inventory_item_id": 789012,
+            "available": 90
+          },
+          "mockResponse": {
+            "statusCode": 200,
+            "body": {
+              "inventory_level": {
+                "available": 90
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Status Updates",
+      "description": "Test order status update operations",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Get order details",
+          "endpoint": "GET /admin/api/2023-10/orders/123456789.json",
+          "mockResponse": {
+            "statusCode": 200,
+            "body": {
+              "order": {
+                "id": 123456789,
+                "fulfillment_status": "unfulfilled"
+              }
+            }
+          }
+        },
+        {
+          "step": 2,
+          "action": "Update order fulfillment status",
+          "endpoint": "PUT /admin/api/2023-10/orders/123456789.json",
+          "expectedRequest": {
+            "order": {
+              "fulfillment_status": "fulfilled"
+            }
+          },
+          "mockResponse": {
+            "statusCode": 200,
+            "body": {
+              "order": {
+                "id": 123456789,
+                "fulfillment_status": "fulfilled"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error Handling Scenarios",
+      "description": "Test error handling for various Shopify API failures",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Test rate limiting",
+          "endpoint": "POST /admin/api/2023-10/orders.json",
+          "mockResponse": {
+            "statusCode": 429,
+            "body": {
+              "errors": "Exceeded 2 calls per second for api client"
+            }
+          }
+        },
+        {
+          "step": 2,
+          "action": "Test invalid access token",
+          "endpoint": "GET /admin/api/2023-10/orders.json",
+          "mockResponse": {
+            "statusCode": 401,
+            "body": {
+              "errors": "Unauthorized"
+            }
+          }
+        },
+        {
+          "step": 3,
+          "action": "Test validation errors",
+          "endpoint": "POST /admin/api/2023-10/orders.json",
+          "expectedRequest": {
+            "order": {
+              "line_items": []
+            }
+          },
+          "mockResponse": {
+            "statusCode": 422,
+            "body": {
+              "errors": {
+                "line_items": ["can't be blank"]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "mockEndpoints": [
+    {
+      "name": "Shopify Orders API",
+      "basePath": "/admin/api/2023-10/orders",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/admin/api/2023-10/orders.json",
+          "description": "Create new order",
+          "headers": {
+            "Content-Type": ["application/json"],
+            "X-Shopify-Access-Token": [".*"]
+          },
+          "response": {
+            "statusCode": 201,
+            "body": {
+              "order": {
+                "id": 123456789,
+                "order_number": "SHOPIFY-TEST-123",
+                "created_at": "2024-01-15T10:00:00-05:00",
+                "total_price": "99.99",
+                "financial_status": "paid",
+                "fulfillment_status": "unfulfilled"
+              }
+            }
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/admin/api/2023-10/orders.json",
+          "description": "List orders",
+          "queryParams": {
+            "status": ["open", "closed", "cancelled"],
+            "limit": ["50", "100"]
+          },
+          "response": {
+            "statusCode": 200,
+            "body": {
+              "orders": []
+            }
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/admin/api/2023-10/orders/123456789.json",
+          "description": "Get specific order",
+          "response": {
+            "statusCode": 200,
+            "body": {
+              "order": {
+                "id": 123456789,
+                "order_number": "SHOPIFY-TEST-123"
+              }
+            }
+          }
+        },
+        {
+          "method": "PUT",
+          "path": "/admin/api/2023-10/orders/123456789.json",
+          "description": "Update order",
+          "response": {
+            "statusCode": 200,
+            "body": {
+              "order": {
+                "id": 123456789,
+                "updated_at": "2024-01-15T10:00:00-05:00"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shopify Inventory API",
+      "basePath": "/admin/api/2023-10/inventory_levels",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/admin/api/2023-10/inventory_levels.json",
+          "description": "Get inventory levels",
+          "queryParams": {
+            "inventory_item_ids": [".*"],
+            "location_ids": [".*"]
+          },
+          "response": {
+            "statusCode": 200,
+            "body": {
+              "inventory_levels": []
+            }
+          }
+        },
+        {
+          "method": "PUT",
+          "path": "/admin/api/2023-10/inventory_levels/set.json",
+          "description": "Set inventory levels",
+          "response": {
+            "statusCode": 200,
+            "body": {
+              "inventory_level": {
+                "available": 90,
+                "updated_at": "2024-01-15T10:00:00-05:00"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shopify Fulfillments API",
+      "basePath": "/admin/api/2023-10/fulfillments",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/admin/api/2023-10/fulfillments.json",
+          "description": "Create fulfillment",
+          "response": {
+            "statusCode": 201,
+            "body": {
+              "fulfillment": {
+                "id": 987654321,
+                "status": "open"
+              }
+            }
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/admin/api/2023-10/fulfillments.json",
+          "description": "List fulfillments",
+          "response": {
+            "statusCode": 200,
+            "body": {
+              "fulfillments": []
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "testData": {
+    "sampleOrder": {
+      "orderId": "SHOPIFY-TEST-123",
+      "productIds": ["PROD-001"],
+      "quantity": 10,
+      "customerEmail": "test@example.com",
+      "totalPrice": "99.99"
+    },
+    "sampleProduct": {
+      "id": 789012,
+      "sku": "PROD-001",
+      "title": "Test Product",
+      "price": "9.99"
+    },
+    "sampleCustomer": {
+      "id": 987654321,
+      "email": "test@example.com",
+      "firstName": "Test",
+      "lastName": "Customer"
+    }
+  }
+} 

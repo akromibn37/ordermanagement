@@ -1,0 +1,498 @@
+openapi: 3.0.3
+info:
+  title: Order Management Data API
+  description: |
+    Data access layer for the Order Management System providing database operations
+    for orders, inventory, and order details. This service handles all persistence
+    operations with proper transaction management and pessimistic locking to prevent
+    overselling scenarios.
+
+    ## Key Features
+    - Order CRUD operations
+    - Inventory management with pessimistic locking
+    - Transaction management
+    - Order validation and status checks
+    - Comprehensive error handling
+
+    ## Architecture
+    - **Port 8081**: Data persistence service
+    - **Database**: PostgreSQL with JPA/Hibernate
+    - **Pattern**: Repository pattern with transaction management
+  version: 1.0.0
+  contact:
+    name: Order Management Team
+    email: team@ordermanagement.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8081
+    description: Local Development
+  - url: https://data-api.ordermanagement.com
+    description: Production Environment
+
+tags:
+  - name: Orders
+    description: Order management operations
+  - name: Inventory
+    description: Inventory management operations
+  - name: Health
+    description: Health check and monitoring endpoints
+
+paths:
+  /api/order/check:
+    get:
+      tags:
+        - Orders
+      summary: Check Order and Inventory Availability
+      description: |
+        Checks if an order exists and validates inventory availability for all requested products.
+        This endpoint performs two critical checks:
+        1. **Order Status Check**: Verifies if the order already exists and has been processed
+        2. **Inventory Check**: Validates that all requested products have sufficient stock
+
+        **Business Logic:**
+        - If order exists → Return "order already success"
+        - If inventory insufficient → Return "not enough inventory"
+        - If all checks pass → Return "success" with inventory details
+
+        **Parameters:**
+        - `orderId`: Unique order identifier
+        - `productIds`: Comma-separated list of product IDs
+        - `quantity`: Comma-separated list of quantities (must match productIds order)
+      operationId: checkOrderAndInventory
+      parameters:
+        - name: orderId
+          in: query
+          required: true
+          description: Unique order identifier
+          schema:
+            type: string
+          example: "10001"
+        - name: productIds
+          in: query
+          required: true
+          description: Comma-separated list of product IDs
+          schema:
+            type: string
+          example: "123456789,987654321,555666777"
+        - name: quantity
+          in: query
+          required: true
+          description: Comma-separated list of quantities (must match productIds order)
+          schema:
+            type: string
+          example: "2,3,1"
+      responses:
+        "200":
+          description: Order and inventory check completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderCheckResponse"
+              examples:
+                success_response:
+                  summary: Success - Inventory Available
+                  value:
+                    isContinue: true
+                    description: "success"
+                    orderId: 1001
+                    products:
+                      - productId: 1000001
+                        sku: "TSHIRT-001"
+                        title: "Popular T-Shirt"
+                        requestedQuantity: 2
+                        availableQuantity: 95
+                        remainQuantity: 93
+                        status: "available"
+                      - productId: 100002
+                        sku: "TSHIRT-002"
+                        title: "Popular T-Shirt Blue"
+                        requestedQuantity: 1
+                        availableQuantity: 50
+                        remainQuantity: 49
+                        status: "available"
+                order_exists:
+                  summary: Order Already Exists
+                  value:
+                    isContinue: false
+                    description: "order already success"
+                    orderId: 1001
+                    products: []
+                insufficient_inventory:
+                  summary: Insufficient Inventory
+                  value:
+                    isContinue: false
+                    description: "not enough inventory"
+                    orderId: 1001
+                    products:
+                      - productId: 1000001
+                        sku: "TSHIRT-001"
+                        title: "Popular T-Shirt"
+                        requestedQuantity: 2
+                        availableQuantity: 1
+                        remainQuantity: 1
+                        status: "insufficient"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_parameters:
+                  summary: Invalid Parameters
+                  value:
+                    error: "Bad Request"
+                    message: "Invalid productIds or quantity format"
+                    timestamp: "2024-01-15T10:30:00Z"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                internal_error:
+                  summary: Internal Error
+                  value:
+                    error: "Internal Server Error"
+                    message: "Database connection failed"
+                    timestamp: "2024-01-15T10:30:00Z"
+
+  /api/order/update:
+    post:
+      tags:
+        - Orders
+      summary: Update Order and Inventory
+      description: |
+        Creates or updates an order and decreases inventory quantities. This endpoint
+        performs the following operations within a single transaction:
+
+        1. **Inventory Check**: Verifies available quantity for each product
+        2. **Inventory Update**: Decreases available quantity by requested amount
+        3. **Order Creation**: Inserts new order record
+        4. **Order Details**: Inserts order line items
+
+        **Transaction Management:**
+        - Uses pessimistic locking to prevent overselling
+        - Rolls back all changes if any operation fails
+        - Ensures data consistency across all tables
+
+        **Business Rules:**
+        - Available quantity must be >= requested quantity
+        - Order number must be unique
+        - All operations succeed or fail together
+      operationId: updateOrderAndInventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderUpdateRequest"
+            examples:
+              sample_order:
+                summary: Sample Order Update
+                description: A typical order update request
+                value:
+                  id: "123456789"
+                  order_number: 1001
+                  customer_id: "123456789"
+                  created_at: "2024-01-15T10:30:00Z"
+                  updated_at: "2024-01-15T10:35:00Z"
+                  processed_at: "2024-01-15T10:35:00Z"
+                  line_items:
+                    - id: 123456789
+                      product_id: "123456789"
+                      quantity: 2
+                      title: "Popular T-Shirt"
+                      sku: "TSHIRT-001"
+                      price: "19.99"
+                      total_discount: "0.00"
+                  total_price: "39.98"
+                  currency: "USD"
+      responses:
+        "200":
+          description: Order and inventory updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderUpdateResponse"
+              examples:
+                success_response:
+                  summary: Success Response
+                  value:
+                    isSuccess: true
+                    message: "Order updated successfully"
+        "400":
+          description: Bad request - validation error or insufficient inventory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderUpdateResponse"
+              examples:
+                insufficient_inventory:
+                  summary: Insufficient Inventory
+                  value:
+                    isSuccess: false
+                    message: "Insufficient inventory for product TSHIRT-001"
+                duplicate_order:
+                  summary: Duplicate Order
+                  value:
+                    isSuccess: false
+                    message: "Order number already exists"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderUpdateResponse"
+              examples:
+                internal_error:
+                  summary: Internal Error
+                  value:
+                    isSuccess: false
+                    message: "Database transaction failed"
+
+  /actuator/health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Returns the health status of the service and database connectivity
+      operationId: getHealthStatus
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+                  components:
+                    type: object
+                    properties:
+                      db:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: "UP"
+                          details:
+                            type: object
+                            properties:
+                              database:
+                                type: string
+                                example: "PostgreSQL"
+                              validationQuery:
+                                type: string
+                                example: "SELECT 1"
+
+components:
+  schemas:
+    OrderCheckResponse:
+      type: object
+      required:
+        - isContinue
+        - description
+        - orderId
+        - products
+      properties:
+        isContinue:
+          type: boolean
+          description: Whether the order processing should continue
+          example: true
+        description:
+          type: string
+          description: Description of the check result
+          enum: [success, not enough inventory, order already exist]
+          example: "success"
+        orderId:
+          type: integer
+          description: Order identifier
+          example: 1001
+        products:
+          type: array
+          description: List of product inventory information
+          items:
+            $ref: "#/components/schemas/OrderProductInfo"
+
+    OrderProductInfo:
+      type: object
+      required:
+        - productId
+        - sku
+        - title
+        - requestedQuantity
+        - availableQuantity
+        - remainQuantity
+        - status
+      properties:
+        productId:
+          type: integer
+          description: Product identifier
+          example: 1000001
+        sku:
+          type: string
+          description: Stock keeping unit
+          example: "TSHIRT-001"
+        title:
+          type: string
+          description: Product title
+          example: "Popular T-Shirt"
+        requestedQuantity:
+          type: integer
+          description: Quantity requested in the order
+          example: 2
+        availableQuantity:
+          type: integer
+          description: Current available quantity in inventory
+          example: 95
+        remainQuantity:
+          type: integer
+          description: Remaining quantity after order fulfillment
+          example: 93
+        status:
+          type: string
+          description: Inventory status for this product
+          enum: [available, insufficient, out_of_stock]
+          example: "available"
+
+    OrderUpdateRequest:
+      type: object
+      required:
+        - id
+        - order_number
+        - customer_id
+        - line_items
+        - total_price
+        - currency
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: Unique order identifier
+          example: "123456789"
+        order_number:
+          type: integer
+          description: Human-readable order number
+          example: 1001
+        customer_id:
+          type: string
+          description: Customer identifier
+          example: "123456789"
+        created_at:
+          type: string
+          format: date-time
+          description: Order creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Order last update timestamp
+          example: "2024-01-15T10:35:00Z"
+        processed_at:
+          type: string
+          format: date-time
+          description: Order processing timestamp
+          example: "2024-01-15T10:35:00Z"
+        line_items:
+          type: array
+          description: List of products in the order
+          items:
+            $ref: "#/components/schemas/OrderLineItem"
+        total_price:
+          type: string
+          description: Total order amount
+          example: "39.98"
+        currency:
+          type: string
+          description: Currency code
+          example: "USD"
+
+    OrderLineItem:
+      type: object
+      required:
+        - id
+        - product_id
+        - quantity
+        - title
+        - sku
+        - price
+      properties:
+        id:
+          type: integer
+          description: Line item identifier
+          example: 123456789
+        product_id:
+          type: string
+          description: Product identifier
+          example: "123456789"
+        quantity:
+          type: integer
+          description: Quantity ordered
+          minimum: 1
+          example: 2
+        title:
+          type: string
+          description: Product title
+          example: "Popular T-Shirt"
+        sku:
+          type: string
+          description: Stock keeping unit
+          example: "TSHIRT-001"
+        price:
+          type: string
+          description: Unit price
+          example: "19.99"
+        total_discount:
+          type: string
+          description: Total discount amount
+          example: "0.00"
+
+    OrderUpdateResponse:
+      type: object
+      required:
+        - isSuccess
+        - message
+      properties:
+        isSuccess:
+          type: boolean
+          description: Whether the operation was successful
+          example: true
+        message:
+          type: string
+          description: Response message
+          example: "Order updated successfully"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "Bad Request"
+        message:
+          type: string
+          description: Error message
+          example: "Invalid parameters provided"
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+          example: "2024-01-15T10:30:00Z"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+security:
+  - BearerAuth: []

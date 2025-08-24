@@ -1,0 +1,435 @@
+openapi: 3.0.3
+info:
+  title: Order Management API
+  description: |
+    Order Management System API for processing Shopify webhooks and managing orders.
+    This service orchestrates the complete order processing flow including inventory checks,
+    WMS integration, and Kafka message publishing.
+
+    ## Key Features
+    - Shopify webhook processing
+    - Order validation and inventory checks
+    - WMS fulfillment integration
+    - Kafka inventory update publishing
+    - Comprehensive error handling
+
+    ## Architecture
+    - **Port 8080**: Main orchestrator service
+    - **Dependencies**: order-manage-data-api, WMS, Kafka
+    - **Pattern**: Clean Architecture with DDD principles
+  version: 1.0.0
+  contact:
+    name: Order Management Team
+    email: team@ordermanagement.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local Development
+  - url: https://api.ordermanagement.com
+    description: Production Environment
+
+tags:
+  - name: Shopify Webhooks
+    description: Shopify order webhook processing endpoints
+  - name: Orders
+    description: Order management operations
+  - name: Health
+    description: Health check and monitoring endpoints
+
+paths:
+  /api/shopify/webhooks/orders:
+    post:
+      tags:
+        - Shopify Webhooks
+      summary: Process Shopify Order Webhook
+      description: |
+        Receives order data from Shopify and processes the complete order flow:
+        1. Validates order data
+        2. Checks inventory availability
+        3. Updates database if inventory available
+        4. Publishes inventory updates to Kafka
+        5. Creates WMS fulfillment order
+
+        **Business Logic Flow:**
+        - Call order-manage-data-api to check order status
+        - Loop through products to check WMS inventory
+        - If all products available, update database and create fulfillment
+        - Publish inventory update messages to Kafka
+        - Return success/error response to Shopify
+      operationId: processShopifyOrderWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopifyOrderWebhookRequest"
+            examples:
+              sample_order:
+                summary: Sample Order
+                description: A typical order from Shopify
+                value:
+                  id: "123456789"
+                  order_number: 1001
+                  name: "#1001"
+                  email: "customer@example.com"
+                  phone: "+1234567890"
+                  created_at: "2024-01-15T10:30:00Z"
+                  updated_at: "2024-01-15T10:30:00Z"
+                  processed_at: "2024-01-15T10:30:00Z"
+                  customer:
+                    id: 123456789
+                    email: "customer@example.com"
+                    first_name: "John"
+                    last_name: "Doe"
+                    phone: "+1234567890"
+                  line_items:
+                    - id: 123456789
+                      product_id: 123456789
+                      variant_id: 123456789
+                      quantity: 2
+                      title: "Popular T-Shirt"
+                      sku: "TSHIRT-001"
+                      price: "19.99"
+                      total_discount: "0.00"
+                      variant_title: "Medium / Blue"
+                  shipping_address:
+                    first_name: "John"
+                    last_name: "Doe"
+                    address1: "123 Main St"
+                    city: "New York"
+                    province: "NY"
+                    country: "United States"
+                    zip: "10001"
+                  billing_address:
+                    first_name: "John"
+                    last_name: "Doe"
+                    address1: "123 Main St"
+                    city: "New York"
+                    province: "NY"
+                    country: "United States"
+                    zip: "10001"
+                  total_price: "39.98"
+                  subtotal_price: "39.98"
+                  total_tax: "0.00"
+                  currency: "USD"
+                  financial_status: "paid"
+                  fulfillment_status: null
+                  tags: ""
+                  note: ""
+                  source_name: "web"
+      responses:
+        "200":
+          description: Order processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopifyOrderWebhookResponse"
+              examples:
+                success_response:
+                  summary: Success Response
+                  value:
+                    status: "success"
+                    message: "Order received and processed"
+                    order_id: "123456789"
+        "400":
+          description: Bad request - validation error or insufficient inventory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopifyOrderWebhookResponse"
+              examples:
+                validation_error:
+                  summary: Validation Error
+                  value:
+                    status: "error"
+                    message: "Insufficient inventory for product TSHIRT-001"
+                    order_id: "123456789"
+                duplicate_order:
+                  summary: Duplicate Order
+                  value:
+                    status: "error"
+                    message: "Order already exists and processed"
+                    order_id: "123456789"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopifyOrderWebhookResponse"
+              examples:
+                internal_error:
+                  summary: Internal Error
+                  value:
+                    status: "error"
+                    message: "Internal server error: WMS service unavailable"
+                    order_id: "123456789"
+
+  /actuator/health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Returns the health status of the service
+      operationId: getHealthStatus
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+                  components:
+                    type: object
+                    properties:
+                      kafka:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: "UP"
+                      wms:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: "UP"
+
+components:
+  schemas:
+    ShopifyOrderWebhookRequest:
+      type: object
+      required:
+        - id
+        - order_number
+        - line_items
+        - total_price
+        - currency
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: Unique Shopify order identifier
+          example: "123456789"
+        order_number:
+          type: integer
+          description: Human-readable order number
+          example: 1001
+        name:
+          type: string
+          description: Order name/tag
+          example: "#1001"
+        email:
+          type: string
+          format: email
+          description: Customer email address
+          example: "customer@example.com"
+        phone:
+          type: string
+          description: Customer phone number
+          example: "+1234567890"
+        created_at:
+          type: string
+          format: date-time
+          description: Order creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Order last update timestamp
+          example: "2024-01-15T10:30:00Z"
+        processed_at:
+          type: string
+          format: date-time
+          description: Order processing timestamp
+          example: "2024-01-15T10:30:00Z"
+        customer:
+          $ref: "#/components/schemas/Customer"
+        line_items:
+          type: array
+          description: List of products in the order
+          items:
+            $ref: "#/components/schemas/LineItem"
+        shipping_address:
+          $ref: "#/components/schemas/Address"
+        billing_address:
+          $ref: "#/components/schemas/Address"
+        total_price:
+          type: string
+          description: Total order amount
+          example: "39.98"
+        subtotal_price:
+          type: string
+          description: Subtotal before taxes and discounts
+          example: "39.98"
+        total_tax:
+          type: string
+          description: Total tax amount
+          example: "0.00"
+        currency:
+          type: string
+          description: Currency code
+          example: "USD"
+        financial_status:
+          type: string
+          description: Payment status
+          example: "paid"
+        fulfillment_status:
+          type: string
+          nullable: true
+          description: Fulfillment status
+          example: null
+        tags:
+          type: string
+          description: Order tags
+          example: ""
+        note:
+          type: string
+          description: Order notes
+          example: ""
+        source_name:
+          type: string
+          description: Order source
+          example: "web"
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Customer identifier
+          example: 123456789
+        email:
+          type: string
+          format: email
+          description: Customer email
+          example: "customer@example.com"
+        first_name:
+          type: string
+          description: Customer first name
+          example: "John"
+        last_name:
+          type: string
+          description: Customer last name
+          example: "Doe"
+        phone:
+          type: string
+          description: Customer phone
+          example: "+1234567890"
+
+    LineItem:
+      type: object
+      required:
+        - id
+        - product_id
+        - quantity
+        - price
+        - sku
+      properties:
+        id:
+          type: integer
+          description: Line item identifier
+          example: 123456789
+        product_id:
+          type: integer
+          description: Product identifier
+          example: 123456789
+        variant_id:
+          type: integer
+          description: Product variant identifier
+          example: 123456789
+        quantity:
+          type: integer
+          description: Quantity ordered
+          minimum: 1
+          example: 2
+        title:
+          type: string
+          description: Product title
+          example: "Popular T-Shirt"
+        sku:
+          type: string
+          description: Stock keeping unit
+          example: "TSHIRT-001"
+        price:
+          type: string
+          description: Unit price
+          example: "19.99"
+        total_discount:
+          type: string
+          description: Total discount amount
+          example: "0.00"
+        variant_title:
+          type: string
+          description: Variant description
+          example: "Medium / Blue"
+
+    Address:
+      type: object
+      properties:
+        first_name:
+          type: string
+          description: First name
+          example: "John"
+        last_name:
+          type: string
+          description: Last name
+          example: "Doe"
+        address1:
+          type: string
+          description: Street address
+          example: "123 Main St"
+        city:
+          type: string
+          description: City
+          example: "New York"
+        province:
+          type: string
+          description: State/province
+          example: "NY"
+        country:
+          type: string
+          description: Country
+          example: "United States"
+        zip:
+          type: string
+          description: ZIP/postal code
+          example: "10001"
+
+    ShopifyOrderWebhookResponse:
+      type: object
+      required:
+        - status
+        - message
+        - order_id
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+          description: Response status
+          example: "success"
+        message:
+          type: string
+          description: Response message
+          example: "Order received and processed"
+        order_id:
+          type: string
+          description: Shopify order identifier
+          example: "123456789"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+security:
+  - BearerAuth: []

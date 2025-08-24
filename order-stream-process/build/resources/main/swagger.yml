@@ -1,0 +1,226 @@
+openapi: 3.0.3
+info:
+  title: Order Stream Process API
+  description: |
+    Stream processing service for the Order Management System that consumes inventory
+    update messages from Kafka and synchronizes inventory levels across Shopify stores.
+    This service handles asynchronous inventory updates to prevent overselling across
+    multiple sales channels.
+
+    ## Key Features
+    - Kafka message consumption for inventory updates
+    - Shopify Admin API integration for inventory synchronization
+    - Asynchronous processing for decoupled operations
+    - Error handling and retry mechanisms
+
+    ## Architecture
+    - **Port 8083**: Stream processing service
+    - **Message Queue**: Kafka consumer for inventory updates
+    - **External API**: Shopify Admin API for inventory updates
+    - **Pattern**: Event-driven architecture with message consumption
+  version: 1.0.0
+  contact:
+    name: Order Management Team
+    email: team@ordermanagement.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8083
+    description: Local Development
+  - url: https://stream.ordermanagement.com
+    description: Production Environment
+
+tags:
+  - name: Stream Processing
+    description: Kafka message processing and inventory synchronization
+  - name: Health
+    description: Health check and monitoring endpoints
+
+paths:
+  /actuator/health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Returns the health status of the service, Kafka connectivity, and Shopify API status
+      operationId: getHealthStatus
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+                  components:
+                    type: object
+                    properties:
+                      kafka:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: "UP"
+                          details:
+                            type: object
+                            properties:
+                              consumerGroup:
+                                type: string
+                                example: "inventory-updates-group"
+                              topic:
+                                type: string
+                                example: "inventory-updates"
+                      shopify:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: "UP"
+                          details:
+                            type: object
+                            properties:
+                              apiVersion:
+                                type: string
+                                example: "2023-10"
+                              baseUrl:
+                                type: string
+                                example: "https://your-shop.myshopify.com"
+
+components:
+  schemas:
+    InventoryStreamMessage:
+      type: object
+      required:
+        - productId
+        - quantity
+        - locationId
+      description: |
+        Kafka message format for inventory updates. This message is published by
+        the order-manage-api service when orders are processed and inventory
+        quantities change.
+      properties:
+        productId:
+          type: integer
+          description: Product identifier for inventory update
+          example: 123456789
+        quantity:
+          type: integer
+          description: Quantity change (positive for increase, negative for decrease)
+          example: -2
+        locationId:
+          type: integer
+          description: Location identifier where inventory is stored
+          example: 123456789
+
+    ShopifyInventoryRequest:
+      type: object
+      required:
+        - location_id
+        - inventory_item_id
+        - available
+      description: |
+        Request payload for updating inventory levels in Shopify stores.
+        This follows the Shopify Admin API specification for inventory updates.
+      properties:
+        location_id:
+          type: integer
+          description: Shopify location identifier
+          example: 123456789
+        inventory_item_id:
+          type: integer
+          description: Shopify inventory item identifier
+          example: 987654321
+        available:
+          type: integer
+          description: Available quantity after update
+          minimum: 0
+          example: 95
+
+    ShopifyInventoryResponse:
+      type: object
+      description: |
+        Response from Shopify Admin API after inventory update.
+        Contains the updated inventory level information.
+      properties:
+        inventory_level:
+          type: object
+          properties:
+            inventory_item_id:
+              type: integer
+              description: Shopify inventory item identifier
+              example: 987654321
+            location_id:
+              type: integer
+              description: Shopify location identifier
+              example: 123456789
+            available:
+              type: integer
+              description: Available quantity after update
+              example: 95
+            updated_at:
+              type: string
+              format: date-time
+              description: Timestamp of the inventory update
+              example: "2024-01-15T10:35:00Z"
+
+    ProcessResult:
+      type: object
+      required:
+        - isSuccess
+        - productId
+        - message
+      description: |
+        Result of processing an inventory update message.
+        Indicates success or failure of the inventory synchronization.
+      properties:
+        isSuccess:
+          type: boolean
+          description: Whether the inventory update was successful
+          example: true
+        productId:
+          type: integer
+          description: Product identifier that was processed
+          example: 123456789
+        message:
+          type: string
+          description: Result message or error description
+          example: "Inventory updated successfully in Shopify"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "Processing Error"
+        message:
+          type: string
+          description: Error message
+          example: "Failed to update inventory in Shopify"
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+          example: "2024-01-15T10:35:00Z"
+        productId:
+          type: integer
+          description: Product identifier that caused the error
+          example: 123456789
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+security:
+  - BearerAuth: []
+# Note: This service consumes Kafka messages from the 'inventory-updates' topic
+# Message format: {"productId": 123456789, "quantity": -2, "locationId": 123456789}
+# Consumer group: inventory-updates-group

@@ -1,0 +1,439 @@
+[
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/v1/products/.*/inventory",
+      "pathParameters": {
+        "productId": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "productId": 1,
+        "sku": "PROD-001",
+        "title": "T-Shirt",
+        "availableQuantity": 100,
+        "reservedQuantity": 0,
+        "totalQuantity": 100,
+        "status": "available"
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/api/wms/inventory/check",
+      "headers": {
+        "Content-Type": ["application/json"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "isAvailable": true,
+        "message": "Inventory check successful",
+        "availableQuantity": 100
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/api/wms/fulfillment/create",
+      "headers": {
+        "Content-Type": ["application/json"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "fulfillmentId": "FUL-12345",
+        "status": "created",
+        "message": "Fulfillment order created successfully"
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/admin/api/2023-10/orders.json",
+      "headers": {
+        "Content-Type": ["application/json"],
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 201,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "order": {
+          "id": 123456789,
+          "order_number": "SHOPIFY-TEST-123",
+          "created_at": "2024-01-15T10:00:00-05:00",
+          "updated_at": "2024-01-15T10:00:00-05:00",
+          "total_price": "99.99",
+          "subtotal_price": "99.99",
+          "total_tax": "0.00",
+          "currency": "USD",
+          "financial_status": "paid",
+          "fulfillment_status": "unfulfilled",
+          "customer": {
+            "id": 987654321,
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "Customer"
+          },
+          "line_items": [
+            {
+              "id": 123456,
+              "product_id": 789012,
+              "variant_id": 345678,
+              "title": "Test Product",
+              "quantity": 10,
+              "price": "9.99"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "PUT",
+      "path": "/admin/api/2023-10/inventory_levels/set.json",
+      "headers": {
+        "Content-Type": ["application/json"],
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "inventory_level": {
+          "inventory_item_id": 789012,
+          "location_id": 123456,
+          "available": 90,
+          "updated_at": "2024-01-15T10:00:00-05:00"
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/admin/api/2023-10/fulfillments.json",
+      "headers": {
+        "Content-Type": ["application/json"],
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 201,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "fulfillment": {
+          "id": 987654321,
+          "order_id": 123456789,
+          "status": "open",
+          "created_at": "2024-01-15T10:00:00-05:00",
+          "updated_at": "2024-01-15T10:00:00-05:00",
+          "tracking_company": "Test Shipping",
+          "tracking_number": "TRK123456789",
+          "line_items": [
+            {
+              "id": 123456,
+              "product_id": 789012,
+              "variant_id": 345678,
+              "title": "Test Product",
+              "quantity": 10
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/admin/api/2023-10/products.json",
+      "queryStringParameters": {
+        "title": ["Test Product"]
+      },
+      "headers": {
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "products": [
+          {
+            "id": 789012,
+            "title": "Test Product",
+            "body_html": "<p>Test product description</p>",
+            "vendor": "Test Vendor",
+            "product_type": "Test Type",
+            "created_at": "2024-01-15T10:00:00-05:00",
+            "updated_at": "2024-01-15T10:00:00-05:00",
+            "variants": [
+              {
+                "id": 345678,
+                "product_id": 789012,
+                "title": "Default Title",
+                "price": "9.99",
+                "sku": "PROD-001",
+                "inventory_quantity": 100,
+                "inventory_item_id": 789012
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/admin/api/2023-10/orders.json",
+      "queryStringParameters": {
+        "status": ["open"],
+        "limit": ["50"]
+      },
+      "headers": {
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "orders": [
+          {
+            "id": 123456789,
+            "order_number": "SHOPIFY-TEST-123",
+            "created_at": "2024-01-15T10:00:00-05:00",
+            "updated_at": "2024-01-15T10:00:00-05:00",
+            "total_price": "99.99",
+            "subtotal_price": "99.99",
+            "total_tax": "0.00",
+            "currency": "USD",
+            "financial_status": "paid",
+            "fulfillment_status": "unfulfilled",
+            "customer": {
+              "id": 987654321,
+              "email": "test@example.com",
+              "first_name": "Test",
+              "last_name": "Customer"
+            },
+            "line_items": [
+              {
+                "id": 123456,
+                "product_id": 789012,
+                "variant_id": 345678,
+                "title": "Test Product",
+                "quantity": 10,
+                "price": "9.99"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/admin/api/2023-10/orders/123456789.json",
+      "headers": {
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "order": {
+          "id": 123456789,
+          "order_number": "SHOPIFY-TEST-123",
+          "created_at": "2024-01-15T10:00:00-05:00",
+          "updated_at": "2024-01-15T10:00:00-05:00",
+          "total_price": "99.99",
+          "subtotal_price": "99.99",
+          "total_tax": "0.00",
+          "currency": "USD",
+          "financial_status": "paid",
+          "fulfillment_status": "unfulfilled",
+          "customer": {
+            "id": 987654321,
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "Customer"
+          },
+          "line_items": [
+            {
+              "id": 123456,
+              "product_id": 789012,
+              "variant_id": 345678,
+              "title": "Test Product",
+              "quantity": 10,
+              "price": "9.99"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "PUT",
+      "path": "/admin/api/2023-10/orders/123456789.json",
+      "headers": {
+        "Content-Type": ["application/json"],
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "order": {
+          "id": 123456789,
+          "order_number": "SHOPIFY-TEST-123",
+          "created_at": "2024-01-15T10:00:00-05:00",
+          "updated_at": "2024-01-15T10:00:00-05:00",
+          "total_price": "99.99",
+          "subtotal_price": "99.99",
+          "total_tax": "0.00",
+          "currency": "USD",
+          "financial_status": "paid",
+          "fulfillment_status": "fulfilled",
+          "customer": {
+            "id": 987654321,
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "Customer"
+          },
+          "line_items": [
+            {
+              "id": 123456,
+              "product_id": 789012,
+              "variant_id": 345678,
+              "title": "Test Product",
+              "quantity": 10,
+              "price": "9.99"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/admin/api/2023-10/inventory_levels.json",
+      "queryStringParameters": {
+        "inventory_item_ids": ["789012"]
+      },
+      "headers": {
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "inventory_levels": [
+          {
+            "inventory_item_id": 789012,
+            "location_id": 123456,
+            "available": 90,
+            "updated_at": "2024-01-15T10:00:00-05:00"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/admin/api/2023-10/orders/123456789/transactions.json",
+      "headers": {
+        "Content-Type": ["application/json"],
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 201,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "transaction": {
+          "id": 987654321,
+          "order_id": 123456789,
+          "kind": "refund",
+          "status": "success",
+          "amount": "99.99",
+          "currency": "USD",
+          "created_at": "2024-01-15T10:00:00-05:00"
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/admin/api/2023-10/locations.json",
+      "headers": {
+        "X-Shopify-Access-Token": [".*"]
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "locations": [
+          {
+            "id": 123456,
+            "name": "Main Warehouse",
+            "address1": "123 Test Street",
+            "city": "Test City",
+            "province": "Test State",
+            "country": "US",
+            "zip": "12345"
+          }
+        ]
+      }
+    }
+  }
+] 

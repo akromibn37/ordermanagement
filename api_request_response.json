@@ -1,0 +1,290 @@
+order-manage-api:
+1.api/shopify/webhooks/orders
+Logic:
+    1.receive order data from shopify
+    2.call to order-manage-data-api: api/order/check
+        if isContinue is true
+            -for loop call wms:/api/v1/products/{productId}/inventory
+            if all products availableQuantity > requestedQuantity
+                -call to order-manage-data-api: /api/order/update
+                if update success
+                    -publish message to kafka topics:inventory queue
+                    -call to wms:/api/v1/fulfillment-orders
+                else
+                    response to shopify: error message
+            else
+                response to shopify: error message
+        else 
+            response to shopify: error message
+
+request body: api/shopify/webhooks/orders
+{
+    "id": 123456789,
+    "order_number": 1001,
+    "name": "#1001",
+    "email": "customer@example.com",
+    "phone": "+1234567890",
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T10:30:00Z",
+    "processed_at": "2024-01-15T10:30:00Z",
+    "customer": {
+      "id": 123456789,
+      "email": "customer@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "phone": "+1234567890"
+    },
+    "line_items": [
+      {
+        "id": 123456789,
+        "product_id": 123456789,
+        "variant_id": 123456789,
+        "quantity": 2,
+        "title": "Popular T-Shirt",
+        "sku": "TSHIRT-001",
+        "price": "19.99",
+        "total_discount": "0.00",
+        "variant_title": "Medium / Blue"
+      }
+    ],
+    "shipping_address": {
+      "first_name": "John",
+      "last_name": "Doe",
+      "address1": "123 Main St",
+      "city": "New York",
+      "province": "NY",
+      "country": "United States",
+      "zip": "10001"
+    },
+    "billing_address": {
+      "first_name": "John",
+      "last_name": "Doe",
+      "address1": "123 Main St",
+      "city": "New York",
+      "province": "NY",
+      "country": "United States",
+      "zip": "10001"
+    },
+    "total_price": "39.98",
+    "subtotal_price": "39.98",
+    "total_tax": "0.00",
+    "currency": "USD",
+    "financial_status": "paid",
+    "fulfillment_status": null,
+    "tags": "",
+    "note": "",
+    "source_name": "web"
+  }
+
+from webhook we not use customer,shipping_address,billing_address cause it out of scope
+total_tax,subtotal_price,tags,note,source_name is not use
+
+response body: api/shopify/webhooks/orders
+  {
+    "status": "success",
+    "message": "Order received and processed",
+    "order_id": 123456789
+  }
+
+
+
+order-manage-data:
+1.GET /order/check?orderId=10001&productIds=123456789,987654321,555666777&quantity=2,3,1
+Logic:
+    1.check order status
+    if order is exist
+        response order already success
+    2.check inventory
+    if all products availableQuantity > requestedQuantity
+        response isContinue is true
+    else
+        response isContinue is false
+
+{
+    "isContinue": true,
+    "Description": "success/not enough inventory/order already exist",
+    "orderId": 1001,
+    "products": [
+      {
+        "productId": 1000001,
+        "sku": "TSHIRT-001",
+        "title": "Popular T-Shirt",
+        "requestedQuantity": 2,
+        "availableQuantity": 95,
+        "remainQuantity": 93,
+        "status": "available"
+      },
+      {
+        "productId": 100002,
+        "sku": "TSHIRT-002",
+        "title": "Popular T-Shirt Blue",
+        "requestedQuantity": 1,
+        "availableQuantity": 50,
+        "remainQuantity": 49,
+        "status": "available"
+      }
+    ],
+  }
+
+2.POST /order/update
+Logic:
+  1.open transaction
+    check availableQuantity in table inventory
+    if availableQuantity > requestedQuantity
+        update availableQuantity = availableQuantity - requestedQuantity
+    else
+        rollback transaction
+    commit transaction
+  2.insert to table order
+  3.insert to table order_detail
+
+request body:
+{
+    "id": 123456789,
+    "order_number": 1001,
+    "customer_id": 123456789,
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T10:35:00Z",
+    "processed_at": "2024-01-15T10:35:00Z",
+    "line_items": [
+      {
+        "id": 123456789,
+        "product_id": 123456789,
+        "quantity": 2,
+        "title": "Popular T-Shirt",
+        "sku": "TSHIRT-001",
+        "price": "19.99",
+        "total_discount": "0.00",
+      }
+    ],
+    "total_price": "39.98",
+    "currency": "USD"
+  }
+response body:
+{
+    "isSuccess": true,
+    "message": "Order updated successfully"
+}
+
+order-stream-process:
+1.stream message format:
+{
+    "productId": 123456789,
+    "quantity": 2,
+    "location_id": 123456789
+}
+2.call to api: https://your-shop.myshopify.com/admin/api/2023-10/inventory_levels/set.json
+{
+    "location_id": 123456789,
+    "inventory_item_id": 987654321,
+    "available": 95
+}
+response body:
+{
+  "inventory_level": {
+    "inventory_item_id": 987654321,
+    "location_id": 123456789,
+    "available": 95,
+    "updated_at": "2024-01-15T10:35:00Z"
+  }
+}
+
+
+WMS:
+for WMS we have only 2 apis where we use model from shipbob.
+1./api/v1/products/{productId}/inventory
+Response body:
+{
+    "productId": 12345,
+    "sku": "TSHIRT-001",
+    "availableQuantity": 95,
+    "reservedQuantity": 5,
+    "totalQuantity": 100,
+    "locationId": 67890,
+    "lastUpdated": "2024-01-15T10:30:00Z"
+}
+2./api/v1/fulfillment-orders
+request body:
+{
+    "referenceId": "ORDER-1001",
+    "items": [
+    {
+        "productId": 12345,
+        "quantity": 2,
+        "sku": "TSHIRT-001"
+    }
+    ],
+    "shippingAddress": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "address1": "123 Main St",
+    "city": "New York",
+    "state": "NY",
+    "zipCode": "10001",
+    "country": "US"
+    },
+    "shippingMethod": "standard",
+    "customerEmail": "customer@example.com"
+}
+response body:
+{
+    "fulfillmentOrderId": 98765,
+    "status": "pending",
+    "referenceId": "ORDER-1001",
+    "estimatedShipDate": "2024-01-16T10:00:00Z",
+    "trackingNumber": null
+}
+
+
+DB
+@Entity
+@Table(name = "orders")
+data class OrderEntity(
+@Id @GeneratedValue(strategy = GenerationType.IDENTITY) val orderId: Int? = null,
+@Column(name = "order_number", unique = true, nullable = false) val orderNumber: Int,
+@Column(name = "customer_id", nullable = false, length = 20) val customerId: String,
+@Column(name = "product_type_count", nullable = false) val productTypeCount: Int,
+@Column(name = "total_price", nullable = false, length = 20) val totalPrice: String,
+@Column(name = "order_status", nullable = false, length = 10) val orderStatus: String,
+@Column(name = "create_date", nullable = false) val createDate: LocalDateTime,
+@Column(name = "create_by", nullable = false, length = 50) val createBy: String,
+@Column(name = "update_date", nullable = false) val updateDate: LocalDateTime,
+@Column(name = "update_by", nullable = false, length = 50) val updateBy: String,
+@OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
+val orderDetails: MutableList<OrderDetailEntity> = mutableListOf()
+)
+
+@Entity
+@Table(name = "order_detail")
+data class OrderDetailEntity(
+@Id @GeneratedValue(strategy = GenerationType.IDENTITY) val id: Int? = null,
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "order_id", nullable = false)
+val order: OrderEntity,
+@Column(name = "product_id", nullable = false, length = 100) val productId: String,
+@Column(name = "price", nullable = false, length = 20) val price: String,
+@Column(name = "quantity", nullable = false) val quantity: Int,
+@Column(name = "create_date", nullable = false) val createDate: LocalDateTime,
+@Column(name = "create_by", nullable = false, length = 50) val createBy: String,
+@Column(name = "update_date", nullable = false) val updateDate: LocalDateTime,
+@Column(name = "update_by", nullable = false, length = 50) val updateBy: String
+)
+
+@Entity
+@Table(name = "inventory")
+data class InventoryEntity(
+@Id @GeneratedValue(strategy = GenerationType.IDENTITY) val productId: Int? = null,
+@Column(name = "sku", unique = true, nullable = false, length = 20) val sku: String,
+@Column(name = "product_title", nullable = false, length = 10) val productTitle: String,
+@Column(name = "product_price", nullable = false, length = 20) val productPrice: String,
+@Column(name = "currency", nullable = false, length = 10) val currency: String,
+@Column(name = "available_quantity", nullable = false) val availableQuantity: Int,
+@Column(name = "create_date", nullable = false) val createDate: LocalDateTime,
+@Column(name = "create_by", nullable = false, length = 50) val createBy: String,
+@Column(name = "update_date", nullable = false) val updateDate: LocalDateTime,
+@Column(name = "update_by", nullable = false, length = 50) val updateBy: String
+)
+
+
+
+
