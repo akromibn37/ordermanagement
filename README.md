@@ -33,113 +33,6 @@ The Order Management System is designed as a microservices architecture that int
 └─────────────────┘                                                                      └─────────────────┘
 ```
 
-## 🚀 Quick Start
-
-**🎯 ONE COMMAND SOLUTION (Recommended):**
-```bash
-# Build, start infrastructure, init DB, start services, and run comprehensive tests
-make test-everything-simple
-```
-
-**Or step by step:**
-```bash
-# 1. Start infrastructure and initialize database
-make start-infra
-make init-db
-
-# 2. Start all services
-make start-all
-
-# 3. Run comprehensive tests
-make test-all-scenarios
-```
-
-**Useful commands:**
-```bash
-make help              # Show all available commands
-make check-logs        # Check recent logs from all services
-make check-db          # Check database data for recent orders
-make status            # Show service status
-```
-
-### 🎯 **What `make test-everything-simple` Does:**
-
-This single command automates the entire setup and testing process:
-
-**Step 1: Build All Services** 🏗️
-- Builds `order-manage-api` Docker image
-- Builds `order-manage-data-api` Docker image  
-- Builds `order-stream-process` Docker image
-
-**Step 2: Start Infrastructure & Initialize Database** 🗄️
-- Starts PostgreSQL database
-- Starts Zookeeper
-- Starts Kafka
-- Starts Mock WMS API
-- Initializes database schema and test data
-
-**Step 3: Start Application Services** 🚀
-- Starts `order-manage-api` (Port 8080)
-- Starts `order-manage-data-api` (Port 8081)
-- Starts `order-stream-process` (Port 8083)
-
-**Step 4: Run Comprehensive Tests** 🧪
-- Executes 7 test scenarios with detailed logging
-- Shows success/failure analysis for each test
-- Displays database verification for each test case
-- Provides comprehensive system validation
-
-**Total Time:** Approximately 3-5 minutes for complete setup and testing
-
-**Perfect For:** 
-- First-time users
-- Quick system validation
-- Demo purposes
-- CI/CD pipelines
-
-### 🚨 **Troubleshooting the One-Command Solution:**
-
-**If the command fails:**
-
-1. **Check Docker Resources:**
-   ```bash
-   # Ensure Docker has enough memory (at least 4GB) and CPU
-   docker system df
-   docker stats
-   ```
-
-2. **Clean Up and Retry:**
-   ```bash
-   # Stop everything and clean up
-   make stop-all
-   docker system prune -f
-   
-   # Try again
-   make test-everything-simple
-   ```
-
-3. **Check Individual Steps:**
-   ```bash
-   # If the one-command fails, run steps individually
-   make build-all
-   make start-infra
-   make init-db
-   make start-all
-   make test-all-scenarios
-   ```
-
-4. **Common Issues:**
-   - **Port conflicts**: Ensure ports 8080, 8081, 8083, 5432, 9092, 2181, 8084 are available
-   - **Memory issues**: Increase Docker memory allocation
-   - **Network issues**: Check Docker network configuration
-
-**Need Help?**
-```bash
-make help              # Show all available commands
-make status            # Check service status
-make check-logs        # View service logs
-```
-
 ## 🔄 Order Processing Flow
 
 ```
@@ -436,11 +329,10 @@ If you prefer to run steps individually:
 make build-all
 
 # Step 2: Start infrastructure and initialize database
-make start-infra
-make init-db
+make start-order-services
 
 # Step 3: Start all application services
-make start-all
+make init-db
 
 # Step 4: Run comprehensive tests
 make test-all-scenarios

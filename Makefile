@@ -276,8 +276,15 @@ test-kafka-shopify-flow: start-infra
 # 5. Comprehensive Test Scenarios
 test-all-scenarios: ## Run comprehensive test scenarios
 	@echo "🧪 Running comprehensive test scenarios..."
-	@echo "Starting application services..."
-	@make start-all
+	@echo ""
+	@echo "⏳ Waiting for all services to be fully ready..."
+	@echo "   - Waiting for order-manage-data-api..."
+	@until curl -s http://localhost:8081/actuator/health > /dev/null 2>&1; do sleep 5; done
+	@echo "   - Waiting for order-manage-api..."
+	@until curl -s http://localhost:8080/actuator/health > /dev/null 2>&1; do sleep 5; done
+	@echo "   - Waiting for order-stream-process..."
+	@until curl -s http://localhost:8083/actuator/health > /dev/null 2>&1; do sleep 5; done
+	@echo "✅ All services are ready and healthy!"
 	@echo ""
 	@echo "🧪 Test Scenario 3.1: Success with only 1 product with 1 quantity"
 	@echo "Testing order with single product and minimal quantity..."
@@ -308,11 +315,11 @@ test-all-scenarios: ## Run comprehensive test scenarios
 		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7001;" 2>/dev/null || echo "No order found in database (expected for failure)"; \
 	fi
 	@echo ""
-	@echo "🧪 Test Scenario 3.2: Success with 1 product with multiple quantities"
-	@echo "Testing order with single product and larger quantity..."
+	@echo "🧪 Test Scenario 3.2: Success with 3 products with every product remaining item more than quantity"
+	@echo "Testing order with 3 products, each with sufficient inventory..."
 	@response=$$(curl -s -X POST "http://localhost:8080/api/shopify/webhooks/orders" \
 		-H "Content-Type: application/json" \
-		-d '{"id": 7002, "orderNumber": "7002", "name": "#7002", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 5, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "125.00", "subtotalPrice": "125.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Test order", "sourceName": "web"}'); \
+		-d '{"id": 7002, "orderNumber": "7002", "name": "#7002", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 2, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 2, "productId": 2, "variantId": 2, "quantity": 1, "title": "Jeans", "sku": "PROD-002", "price": "50.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 3, "productId": 3, "variantId": 3, "quantity": 1, "title": "Shoes", "sku": "PROD-003", "price": "80.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "180.00", "subtotalPrice": "180.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Test order", "sourceName": "web"}'); \
 	echo "Response: $$response"; \
 	if echo "$$response" | grep -q '"status":"success"'; then \
 		echo "✅ Test 3.2: Order processed successfully"; \
@@ -337,11 +344,11 @@ test-all-scenarios: ## Run comprehensive test scenarios
 		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7002;" 2>/dev/null || echo "No order found in database (expected for failure)"; \
 	fi
 	@echo ""
-	@echo "🧪 Test Scenario 3.3: Success with multiple products"
-	@echo "Testing order with multiple products..."
+	@echo "🧪 Test Scenario 3.3: Success with 5 products with every product remaining item more than quantity"
+	@echo "Testing order with 5 products, each with sufficient inventory..."
 	@response=$$(curl -s -X POST "http://localhost:8080/api/shopify/webhooks/orders" \
 		-H "Content-Type: application/json" \
-		-d '{"id": 7003, "orderNumber": "7003", "name": "#7003", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 2, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 2, "productId": 2, "variantId": 2, "quantity": 1, "title": "Jeans", "sku": "PROD-002", "price": "50.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "100.00", "subtotalPrice": "100.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Test order", "sourceName": "web"}'); \
+		-d '{"id": 7003, "orderNumber": "7003", "name": "#7003", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 1, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 2, "productId": 2, "variantId": 2, "quantity": 1, "title": "Jeans", "sku": "PROD-002", "price": "50.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 3, "productId": 3, "variantId": 3, "quantity": 1, "title": "Shoes", "sku": "PROD-003", "price": "80.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 4, "productId": 4, "variantId": 4, "quantity": 1, "title": "Hat", "sku": "PROD-004", "price": "15.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 5, "productId": 5, "variantId": 5, "quantity": 1, "title": "Bag", "sku": "PROD-005", "price": "35.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "205.00", "subtotalPrice": "205.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Test order", "sourceName": "web"}'); \
 	echo "Response: $$response"; \
 	if echo "$$response" | grep -q '"status":"success"'; then \
 		echo "✅ Test 3.3: Order processed successfully"; \
@@ -366,120 +373,92 @@ test-all-scenarios: ## Run comprehensive test scenarios
 		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7003;" 2>/dev/null || echo "No order found in database (expected for failure)"; \
 	fi
 	@echo ""
-	@echo "🧪 Test Scenario 3.4: Success with complex order (multiple products, quantities, discounts)"
-	@echo "Testing complex order with discounts..."
+	@echo "🧪 Test Scenario 3.4: Fail with order ID repeat"
+	@echo "Testing duplicate order ID rejection..."
 	@response=$$(curl -s -X POST "http://localhost:8080/api/shopify/webhooks/orders" \
 		-H "Content-Type: application/json" \
-		-d '{"id": 7004, "orderNumber": "7004", "name": "#7004", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 3, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "5.00", "variantTitle": "Default"}, {"id": 2, "productId": 3, "variantId": 3, "quantity": 2, "title": "Shoes", "sku": "PROD-003", "price": "80.00", "totalDiscount": "10.00", "variantTitle": "Default"}, {"id": 3, "productId": 4, "variantId": 4, "quantity": 1, "title": "Hat", "sku": "PROD-004", "price": "15.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "285.00", "subtotalPrice": "285.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Test order", "sourceName": "web"}'); \
+		-d '{"id": 7001, "orderNumber": "7001", "name": "#7001-DUPLICATE", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 1, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "25.00", "subtotalPrice": "25.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Duplicate order test", "sourceName": "web"}'); \
 	echo "Response: $$response"; \
-	if echo "$$response" | grep -q '"status":"success"'; then \
-		echo "✅ Test 3.4: Order processed successfully"; \
-		echo "📋 Checking logs and database for success case..."; \
+	if echo "$$response" | grep -q '"status":"error"'; then \
+		echo "✅ Test 3.4: Duplicate order ID correctly rejected"; \
+		echo "📋 Checking logs for duplicate rejection..."; \
 		echo "--- order-manage-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-api | grep -E "(7004|Order received|processed)" || echo "No relevant logs found"; \
+		docker-compose logs --tail=10 order-manage-api | grep -E "(7001|duplicate|rejected)" || echo "No relevant logs found"; \
 		echo "--- order-manage-data-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7004|checkOrder|updateOrder)" || echo "No relevant logs found"; \
-		echo "--- order-stream-process logs ---"; \
-		docker-compose logs --tail=10 order-stream-process | grep -E "(7004|inventory|update)" || echo "No relevant logs found"; \
-		echo "--- Database verification ---"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7004;" 2>/dev/null || echo "Database query failed"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT od.order_id, od.product_id, od.price, od.quantity FROM order_detail od JOIN orders o ON od.order_id = o.order_id WHERE o.order_number = 7004;" 2>/dev/null || echo "Database query failed"; \
+		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7001|duplicate|rejected)" || echo "No relevant logs found"; \
 	else \
-		echo "❌ Test 3.4: Order failed"; \
-		echo "📋 Checking logs and database for failure case..."; \
+		echo "❌ Test 3.4: Duplicate order ID should have been rejected"; \
+		echo "📋 Checking logs for unexpected success..."; \
 		echo "--- order-manage-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-api | grep -E "(7004|error|failed)" || echo "No relevant logs found"; \
+		docker-compose logs --tail=10 order-manage-api | grep -E "(7001|duplicate|rejected)" || echo "No relevant logs found"; \
 		echo "--- order-manage-data-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7004|error|failed)" || echo "No relevant logs found"; \
-		echo "--- Database verification ---"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7004;" 2>/dev/null || echo "No order found in database (expected for failure)"; \
+		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7001|duplicate|rejected)" || echo "No relevant logs found"; \
 	fi
 	@echo ""
-	@echo "🧪 Test Scenario 3.5: Success with maximum inventory usage"
-	@echo "Testing order with large quantity..."
+	@echo "🧪 Test Scenario 3.5: Fail with 1 product but not have product in DB"
+	@echo "Testing non-existent product rejection..."
 	@response=$$(curl -s -X POST "http://localhost:8080/api/shopify/webhooks/orders" \
 		-H "Content-Type: application/json" \
-		-d '{"id": 7005, "orderNumber": "7005", "name": "#7005", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 4, "variantId": 4, "quantity": 50, "title": "Hat", "sku": "PROD-004", "price": "15.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "750.00", "subtotalPrice": "750.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Test order", "sourceName": "web"}'); \
+		-d '{"id": 7005, "orderNumber": "7005", "name": "#7005", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 999, "variantId": 999, "quantity": 1, "title": "NonExistent", "sku": "PROD-999", "price": "100.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "100.00", "subtotalPrice": "100.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Non-existent product test", "sourceName": "web"}'); \
 	echo "Response: $$response"; \
-	if echo "$$response" | grep -q '"status":"success"'; then \
-		echo "✅ Test 3.5: Order processed successfully"; \
-		echo "📋 Checking logs and database for success case..."; \
+	if echo "$$response" | grep -q '"status":"error"'; then \
+		echo "✅ Test 3.5: Non-existent product correctly rejected"; \
+		echo "📋 Checking logs for product not found rejection..."; \
 		echo "--- order-manage-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-api | grep -E "(7005|Order received|processed)" || echo "No relevant logs found"; \
+		docker-compose logs --tail=10 order-manage-api | grep -E "(7005|not found|rejected)" || echo "No relevant logs found"; \
 		echo "--- order-manage-data-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7005|checkOrder|updateOrder)" || echo "No relevant logs found"; \
-		echo "--- order-stream-process logs ---"; \
-		docker-compose logs --tail=10 order-stream-process | grep -E "(7005|inventory|update)" || echo "No relevant logs found"; \
-		echo "--- Database verification ---"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7005;" 2>/dev/null || echo "Database query failed"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT od.order_id, od.product_id, od.price, od.quantity FROM order_detail od JOIN orders o ON od.order_id = o.order_id WHERE o.order_number = 7005;" 2>/dev/null || echo "Database query failed"; \
+		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7005|not found|rejected)" || echo "No relevant logs found"; \
 	else \
-		echo "❌ Test 3.5: Order failed"; \
-		echo "📋 Checking logs and database for failure case..."; \
+		echo "❌ Test 3.5: Non-existent product should have been rejected"; \
+		echo "📋 Checking logs for unexpected success..."; \
 		echo "--- order-manage-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-api | grep -E "(7005|error|failed)" || echo "No relevant logs found"; \
+		docker-compose logs --tail=10 order-manage-api | grep -E "(7005|not found|rejected)" || echo "No relevant logs found"; \
 		echo "--- order-manage-data-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7005|error|failed)" || echo "No relevant logs found"; \
-		echo "--- Database verification ---"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7005;" 2>/dev/null || echo "No order found in database (expected for failure)"; \
+		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7005|not found|rejected)" || echo "No relevant logs found"; \
 	fi
 	@echo ""
-	@echo "🧪 Test Scenario 3.6: Success with edge case - minimum order value"
-	@echo "Testing minimum order value..."
+	@echo "🧪 Test Scenario 3.6: Fail with 2 products but 1 not have product in DB"
+	@echo "Testing mixed valid/invalid products rejection..."
 	@response=$$(curl -s -X POST "http://localhost:8080/api/shopify/webhooks/orders" \
 		-H "Content-Type: application/json" \
-		-d '{"id": 7006, "orderNumber": "7006", "name": "#7006", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 4, "variantId": 4, "quantity": 1, "title": "Hat", "sku": "PROD-004", "price": "15.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "15.00", "subtotalPrice": "15.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Test order", "sourceName": "web"}'); \
+		-d '{"id": 7006, "orderNumber": "7006", "name": "#7006", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 1, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 2, "productId": 999, "variantId": 999, "quantity": 1, "title": "NonExistent", "sku": "PROD-999", "price": "100.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "125.00", "subtotalPrice": "125.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Mixed valid/invalid products test", "sourceName": "web"}'); \
 	echo "Response: $$response"; \
-	if echo "$$response" | grep -q '"status":"success"'; then \
-		echo "✅ Test 3.6: Order processed successfully"; \
-		echo "📋 Checking logs and database for success case..."; \
+	if echo "$$response" | grep -q '"status":"error"'; then \
+		echo "✅ Test 3.6: Mixed valid/invalid products correctly rejected"; \
+		echo "📋 Checking logs for mixed products rejection..."; \
 		echo "--- order-manage-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-api | grep -E "(7006|Order received|processed)" || echo "No relevant logs found"; \
+		docker-compose logs --tail=10 order-manage-api | grep -E "(7006|mixed|rejected)" || echo "No relevant logs found"; \
 		echo "--- order-manage-data-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7006|checkOrder|updateOrder)" || echo "No relevant logs found"; \
-		echo "--- order-stream-process logs ---"; \
-		docker-compose logs --tail=10 order-stream-process | grep -E "(7006|inventory|update)" || echo "No relevant logs found"; \
-		echo "--- Database verification ---"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7006;" 2>/dev/null || echo "Database query failed"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT od.order_id, od.product_id, od.price, od.quantity FROM order_detail od JOIN orders o ON od.order_id = o.order_id WHERE o.order_number = 7006;" 2>/dev/null || echo "Database query failed"; \
+		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7006|mixed|rejected)" || echo "No relevant logs found"; \
 	else \
-		echo "❌ Test 3.6: Order failed"; \
-		echo "📋 Checking logs and database for failure case..."; \
+		echo "❌ Test 3.6: Mixed valid/invalid products should have been rejected"; \
+		echo "📋 Checking logs for unexpected success..."; \
 		echo "--- order-manage-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-api | grep -E "(7006|error|failed)" || echo "No relevant logs found"; \
+		docker-compose logs --tail=10 order-manage-api | grep -E "(7006|mixed|rejected)" || echo "No relevant logs found"; \
 		echo "--- order-manage-data-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7006|error|failed)" || echo "No relevant logs found"; \
-		echo "--- Database verification ---"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7006;" 2>/dev/null || echo "No order found in database (expected for failure)"; \
+		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7006|mixed|rejected)" || echo "No relevant logs found"; \
 	fi
 	@echo ""
-	@echo "🧪 Test Scenario 3.7: Success with edge case - maximum order complexity"
-	@echo "Testing maximum order complexity..."
+	@echo "🧪 Test Scenario 3.7: Fail with 2 products with 1 of them has not enough remaining item"
+	@echo "Testing insufficient inventory rejection..."
 	@response=$$(curl -s -X POST "http://localhost:8080/api/shopify/webhooks/orders" \
 		-H "Content-Type: application/json" \
-		-d '{"id": 7007, "orderNumber": "7007", "name": "#7007", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 10, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 2, "productId": 2, "variantId": 2, "quantity": 5, "title": "Jeans", "sku": "PROD-002", "price": "50.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 3, "productId": 3, "variantId": 3, "quantity": 3, "title": "Shoes", "sku": "PROD-003", "price": "80.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 4, "productId": 4, "variantId": 4, "quantity": 20, "title": "Hat", "sku": "PROD-004", "price": "15.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 5, "productId": 5, "variantId": 5, "quantity": 8, "title": "Bag", "sku": "PROD-005", "price": "35.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "1200.00", "subtotalPrice": "1200.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Test order", "sourceName": "web"}'); \
+		-d '{"id": 7007, "orderNumber": "7007", "name": "#7007", "email": "test@example.com", "phone": "+1234567890", "createdAt": "2025-08-24T03:30:00", "updatedAt": "2025-08-24T03:30:00", "processedAt": "2025-08-24T03:30:00", "customer": {"id": 1, "email": "test@example.com", "firstName": "John", "lastName": "Doe", "phone": "+1234567890"}, "lineItems": [{"id": 1, "productId": 1, "variantId": 1, "quantity": 1, "title": "T-Shirt", "sku": "PROD-001", "price": "25.00", "totalDiscount": "0.00", "variantTitle": "Default"}, {"id": 2, "productId": 6, "variantId": 6, "quantity": 200, "title": "Socks", "sku": "PROD-006", "price": "8.00", "totalDiscount": "0.00", "variantTitle": "Default"}], "shippingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "billingAddress": {"firstName": "John", "lastName": "Doe", "address1": "123 Test St", "city": "Test City", "province": "Test Province", "country": "Test Country", "zip": "12345"}, "totalPrice": "1625.00", "subtotalPrice": "1625.00", "totalTax": "0.00", "currency": "USD", "financialStatus": "PAID", "fulfillmentStatus": "UNFULFILLED", "tags": "test", "note": "Insufficient inventory test", "sourceName": "web"}'); \
 	echo "Response: $$response"; \
-	if echo "$$response" | grep -q '"status":"success"'; then \
-		echo "✅ Test 3.7: Order processed successfully"; \
-		echo "📋 Checking logs and database for success case..."; \
+	if echo "$$response" | grep -q '"status":"error"'; then \
+		echo "✅ Test 3.7: Insufficient inventory correctly rejected"; \
+		echo "📋 Checking logs for insufficient inventory rejection..."; \
 		echo "--- order-manage-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-api | grep -E "(7007|Order received|processed)" || echo "No relevant logs found"; \
+		docker-compose logs --tail=10 order-manage-api | grep -E "(7007|insufficient|rejected)" || echo "No relevant logs found"; \
 		echo "--- order-manage-data-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7007|checkOrder|updateOrder)" || echo "No relevant logs found"; \
-		echo "--- order-stream-process logs ---"; \
-		docker-compose logs --tail=10 order-stream-process | grep -E "(7007|inventory|update)" || echo "No relevant logs found"; \
-		echo "--- Database verification ---"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7007;" 2>/dev/null || echo "Database query failed"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT od.order_id, od.product_id, od.price, od.quantity FROM order_detail od JOIN orders o ON od.order_id = o.order_id WHERE o.order_number = 7007;" 2>/dev/null || echo "Database query failed"; \
+		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7007|insufficient|rejected)" || echo "No relevant logs found"; \
 	else \
-		echo "❌ Test 3.7: Order failed"; \
-		echo "📋 Checking logs and database for failure case..."; \
+		echo "❌ Test 3.7: Insufficient inventory should have been rejected"; \
+		echo "📋 Checking logs for unexpected success..."; \
 		echo "--- order-manage-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-api | grep -E "(7007|error|failed)" || echo "No relevant logs found"; \
+		docker-compose logs --tail=10 order-manage-api | grep -E "(7007|insufficient|rejected)" || echo "No relevant logs found"; \
 		echo "--- order-manage-data-api logs ---"; \
-		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7007|error|failed)" || echo "No relevant logs found"; \
-		echo "--- Database verification ---"; \
-		docker exec order-management-postgres psql -U postgres -d order_management -c "SELECT order_number, customer_id, product_type_count, total_price, order_status FROM orders WHERE order_number = 7007;" 2>/dev/null || echo "No order found in database (expected for failure)"; \
+		docker-compose logs --tail=10 order-manage-data-api | grep -E "(7007|insufficient|rejected)" || echo "No relevant logs found"; \
 	fi
 	@echo ""
 	@echo "🎉 All test scenarios completed!"
@@ -542,12 +521,13 @@ test-everything-simple: ## 🚀 ONE COMMAND: Build, init DB, and run comprehensi
 	@echo "Step 1: Building all services..."
 	@make build-all
 	@echo ""
-	@echo "Step 2: Starting infrastructure and initializing database..."
-	@make start-infra
+	@echo "Step 2: Starting all application services"
+	@make start-order-services
+	@echo ""
+	@echo ""
+	@echo "Step 3: Starting infrastructure and initializing database..."
 	@make init-db
 	@echo ""
-	@echo "Step 3: Starting all application services..."
-	@make start-all
 	@echo ""
 	@echo "Step 4: Running comprehensive test scenarios..."
 	@make test-all-scenarios

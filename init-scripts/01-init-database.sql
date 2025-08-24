@@ -1,6 +1,6 @@
 -- =====================================================
 -- ORDER MANAGEMENT DATABASE INITIALIZATION
--- Simplified for order-manage-data-api service
+-- Updated to match test script requirements exactly
 -- =====================================================
 
 -- Enable UUID extension
@@ -12,8 +12,12 @@ SET search_path TO public;
 -- =====================================================
 -- ORDERS TABLE (matches OrderEntity)
 -- =====================================================
-CREATE TABLE IF NOT EXISTS orders (
-    order_id BIGSERIAL PRIMARY KEY,
+DROP TABLE IF EXISTS order_detail CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS inventory CASCADE;
+
+CREATE TABLE orders (
+    order_id SERIAL PRIMARY KEY,
     order_number INTEGER UNIQUE NOT NULL,
     customer_id VARCHAR(20) NOT NULL,
     product_type_count INTEGER NOT NULL,
@@ -28,9 +32,9 @@ CREATE TABLE IF NOT EXISTS orders (
 -- =====================================================
 -- ORDER DETAIL TABLE (matches OrderDetailEntity)
 -- =====================================================
-CREATE TABLE IF NOT EXISTS order_detail (
-    id BIGSERIAL PRIMARY KEY,
-    order_id BIGINT NOT NULL REFERENCES orders(order_id),
+CREATE TABLE order_detail (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER NOT NULL REFERENCES orders(order_id),
     product_id BIGINT NOT NULL,
     price VARCHAR(20) NOT NULL,
     quantity INTEGER NOT NULL,
@@ -43,7 +47,7 @@ CREATE TABLE IF NOT EXISTS order_detail (
 -- =====================================================
 -- INVENTORY TABLE (matches InventoryEntity)
 -- =====================================================
-CREATE TABLE IF NOT EXISTS inventory (
+CREATE TABLE inventory (
     product_id BIGSERIAL PRIMARY KEY,
     sku VARCHAR(20) UNIQUE NOT NULL,
     product_title VARCHAR(10) NOT NULL,
@@ -67,48 +71,33 @@ CREATE INDEX IF NOT EXISTS idx_inventory_sku ON inventory(sku);
 CREATE INDEX IF NOT EXISTS idx_inventory_available_quantity ON inventory(available_quantity);
 
 -- =====================================================
--- SAMPLE DATA
+-- CLEAR EXISTING DATA (to ensure clean state)
 -- =====================================================
-
--- Insert sample products into inventory
-INSERT INTO inventory (sku, product_title, product_price, currency, available_quantity, create_date, update_date, create_by, update_by) VALUES
-('PROD-001', 'T-Shirt', '25.00', 'USD', 100, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
-('PROD-002', 'Jeans', '50.00', 'USD', 75, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
-('PROD-003', 'Shoes', '80.00', 'USD', 50, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
-('PROD-004', 'Hat', '15.00', 'USD', 200, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
-('PROD-005', 'Bag', '35.00', 'USD', 60, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system')
-ON CONFLICT (sku) DO NOTHING;
-
--- Insert sample orders
-INSERT INTO orders (order_number, customer_id, product_type_count, total_price, order_status, create_date, update_date, create_by, update_by) VALUES
-(1001, 'CUST-001', 2, '100.00', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),  -- 2 products: T-Shirt(2x$25) + Jeans(1x$50) = $100.00
-(1002, 'CUST-002', 1, '80.00', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),   -- 1 product: Shoes(1x$80) = $80.00
-(1003, 'CUST-003', 3, '125.00', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system')   -- 3 products: T-Shirt(1x$25) + Hat(2x$15) + Bag(2x$35) = $125.00
-ON CONFLICT (order_number) DO NOTHING;
-
--- Insert sample order details (using numeric product IDs that match inventory.product_id)
--- Order 1001: product_type_count = 2, so we need 2 order_detail records
-INSERT INTO order_detail (order_id, product_id, price, quantity, create_date, update_date, create_by, update_by) VALUES
-(1, 1, '25.00', 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),  -- Order 1001: 2x T-Shirt ($25.00 each) = $50.00
-(1, 2, '50.00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system')   -- Order 1001: 1x Jeans ($50.00) = $50.00
--- Total for Order 1001: $50.00 + $50.00 = $100.00
-ON CONFLICT DO NOTHING;
-
--- Order 1002: product_type_count = 1, so we need 1 order_detail record  
-INSERT INTO order_detail (order_id, product_id, price, quantity, create_date, update_date, create_by, update_by) VALUES
-(2, 3, '80.00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system')   -- Order 1002: 1x Shoes ($80.00) = $80.00
-ON CONFLICT DO NOTHING;
-
--- Order 1003: product_type_count = 3, so we need 3 order_detail records
-INSERT INTO order_detail (order_id, product_id, price, quantity, create_date, update_date, create_by, update_by) VALUES
-(3, 1, '25.00', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),  -- Order 1003: 1x T-Shirt ($25.00) = $25.00
-(3, 4, '15.00', 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),  -- Order 1003: 2x Hat ($15.00 each) = $30.00
-(3, 5, '35.00', 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system')   -- Order 1003: 2x Bag ($35.00 each) = $70.00
--- Total for Order 1003: $25.00 + $30.00 + $70.00 = $125.00
-ON CONFLICT DO NOTHING;
+-- Tables are dropped and recreated above, so no need to clear data or reset sequences
 
 -- =====================================================
--- VERIFICATION
+-- SAMPLE INVENTORY DATA (matches test script requirements)
+-- =====================================================
+
+-- Insert sample products into inventory with specific IDs that match test scripts
+-- Test 3.1: productId 1 (T-Shirt) - needs 1 quantity, has 100 ✅
+-- Test 3.2: productId 1,2,3 (T-Shirt, Jeans, Shoes) - needs 2,1,1 quantities, has 100,75,50 ✅
+-- Test 3.3: productId 1,2,3,4,5 (all products) - needs 1 quantity each, has sufficient ✅
+-- Test 3.7: productId 6 (Socks) - needs 200 quantity, has 150 (insufficient) ❌
+INSERT INTO inventory (product_id, sku, product_title, product_price, currency, available_quantity, create_date, update_date, create_by, update_by) VALUES
+(1, 'PROD-001', 'T-Shirt', '25.00', 'USD', 100, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(2, 'PROD-002', 'Jeans', '50.00', 'USD', 75, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(3, 'PROD-003', 'Shoes', '80.00', 'USD', 50, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(4, 'PROD-004', 'Hat', '15.00', 'USD', 200, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(5, 'PROD-005', 'Bag', '35.00', 'USD', 60, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(6, 'PROD-006', 'Socks', '8.00', 'USD', 150, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(7, 'PROD-007', 'Belt', '20.00', 'USD', 80, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(8, 'PROD-008', 'Watch', '120.00', 'USD', 25, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(9, 'PROD-009', 'Wallet', '30.00', 'USD', 90, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'),
+(10, 'PROD-010', 'Scarf', '18.00', 'USD', 120, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system');
+
+-- =====================================================
+-- VERIFICATION QUERIES
 -- =====================================================
 SELECT 'Database initialization completed successfully!' as status;
 
@@ -116,16 +105,33 @@ SELECT COUNT(*) as total_products FROM inventory;
 SELECT COUNT(*) as total_orders FROM orders;
 SELECT COUNT(*) as total_order_details FROM order_detail;
 
--- Verify data consistency: order_detail records should match product_type_count
+-- Show all inventory items with their IDs
 SELECT 
-    o.order_number,
-    o.product_type_count as expected_products,
-    COUNT(od.id) as actual_products,
+    product_id,
+    sku,
+    product_title,
+    product_price,
+    available_quantity,
+    currency
+FROM inventory 
+ORDER BY product_id;
+
+-- Verify that product IDs 1-6 exist and have appropriate inventory for tests
+SELECT 
+    product_id,
+    sku,
+    product_title,
+    available_quantity,
     CASE 
-        WHEN o.product_type_count = COUNT(od.id) THEN '✅ MATCH'
-        ELSE '❌ MISMATCH'
-    END as status
-FROM orders o
-LEFT JOIN order_detail od ON o.order_id = od.order_id
-GROUP BY o.order_id, o.order_number, o.product_type_count
-ORDER BY o.order_number; 
+        WHEN product_id = 6 AND available_quantity < 200 THEN '❌ INSUFFICIENT (Test 3.7 needs 200, has 150)'
+        WHEN available_quantity >= 10 THEN '✅ SUFFICIENT'
+        WHEN available_quantity >= 5 THEN '⚠️ MODERATE'
+        ELSE '❌ LOW'
+    END as inventory_status
+FROM inventory 
+WHERE product_id BETWEEN 1 AND 6
+ORDER BY product_id;
+
+-- Additional verification to ensure database is fully ready
+SELECT 'Database is ready for testing!' as readiness_check;
+SELECT NOW() as current_timestamp; 
