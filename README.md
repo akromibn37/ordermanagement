@@ -164,15 +164,6 @@ POST /api/v1/fulfillment-orders
 }
 ```
 
-**Key ShipBob Features Implemented:**
-- **Real-time inventory tracking** across multiple locations
-- **Automated fulfillment workflows** for e-commerce orders
-- **Multi-channel integration** including Shopify, WooCommerce, and others
-- **Advanced shipping and logistics** management
-- **API Version**: 2023-10 (latest stable)
-- **Authentication**: Bearer token (JWT)
-- **Rate Limits**: 1000 requests per minute per API key
-
 **Reference**: [ShipBob Developer Portal](https://developer.shipbob.com/introduction)
 
 ## 🔒 Data Consistency & Race Conditions
@@ -266,7 +257,11 @@ CREATE TABLE inventory (
 
 ### Retry Strategy Implementation
 
-**1. WMS API Failures**
+**Error Handling Options:**
+
+This project offers two approaches to error handling. We currently use **Option 1 (WMS API Failures)** for its simplicity and ease of maintenance, while **Option 2 (Graceful Degradation)** provides enterprise-grade resilience for production environments.
+
+**Option 1: WMS API Failures (Currently Implemented)**
 ```kotlin
 @Retryable(
     value = [WmsApiException::class],
@@ -275,7 +270,8 @@ CREATE TABLE inventory (
 )
 suspend fun createFulfillmentOrder(order: Order): WmsFulfillmentResult
 ```
-**2. Graceful Degradation**
+
+**Option 2: Graceful Degradation (Alternative)**
 - Cache WMS health status (TTL: 1 minute)
 - Return error responses instead of hanging
 - Maintain system stability under WMS failures
@@ -293,6 +289,17 @@ suspend fun createFulfillmentOrder(order: Order): WmsFulfillmentResult
 - Failed inventory updates sent to error topic
 - Retry service processes failed messages
 - Exponential backoff for retry attempts
+
+---
+
+**Quick Comparison:**
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **WMS API Failures** | Simple, easy to debug, low overhead | Limited resilience, no fallback |
+| **Graceful Degradation** | Better stability, health monitoring | More complex, requires caching |
+| **Circuit Breaker** | Prevents cascading failures, fast failure detection | Complex state management, debugging challenges |
+| **Dead Letter Queue** | Guaranteed message processing, automated retries | Additional infrastructure, message ordering issues |
 
 
 
